@@ -1,0 +1,25 @@
+---
+vpc_cidr: "192.168.0.0/16"
+vpc_layout:
+  - name: Public
+    public: yes
+    nat_gateway: yes
+    subnets:
+      - "{{ vpc_cidr|ipsubnet(24, 0) }}"
+      - "{{ vpc_cidr|ipsubnet(24, 2) }}"
+      - "{{ vpc_cidr|ipsubnet(24, 4) }}"
+  - name: Private
+    nat_from: Public
+    subnets:
+      - "{{ vpc_cidr|ipsubnet(24, 1) }}"
+      - "{{ vpc_cidr|ipsubnet(24, 3) }}"
+      - "{{ vpc_cidr|ipsubnet(24, 5) }}"
+
+region: "eu-west-1"
+
+public_inst:
+  name: public_inst
+  image_id: ami-0ea3405d2d2522162
+  keypair: dvanduijn-keypair
+  instance_type: t2.micro
+  security_groups:

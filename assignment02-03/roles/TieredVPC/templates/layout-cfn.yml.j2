@@ -1,0 +1,211 @@
+---
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: {{ TieredVPC_cidr }}
+      EnableDnsSupport : "true"
+      EnableDnsHostnames : "true"
+      Tags:
+        - Key: Name
+          Value: { "Ref": "AWS::StackName" }
+
+  DefaultRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: { Ref: VPC }
+      Tags:
+        - Key: Name
+          Value: { "Fn::Join": [ " ", [ { "Ref": "AWS::StackName" }, "Default Route Table" ] ] }
+
+{% if TieredVPC_vpn %}
+
+  VPNGatewayPropagationForDefaultRouteTable:
+    Type : AWS::EC2::VPNGatewayRoutePropagation
+    DependsOn: VPNGatewayAttachment
+    Properties:
+      RouteTableIds: [{ Ref : DefaultRouteTable }]
+      VpnGatewayId: { Ref : VPNGateway }
+
+{% endif %}
+
+{% if TieredVPC_igw %}
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: { "Fn::Join": [ " ", [ { "Ref": "AWS::StackName" }, "Internet Gateway" ] ] }
+
+  InternetGatewayVpcAssociation:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: { Ref: VPC }
+      InternetGatewayId: { Ref: InternetGateway }
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: { Ref: VPC }
+      Tags:
+        - Key: Name
+          Value: { "Fn::Join": [ " ", [ { "Ref": "AWS::StackName" }, "Public Route Table" ] ] }
+
+  RouteToInternet:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: { Ref: PublicRouteTable }
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: { Ref : InternetGateway }
+    DependsOn: InternetGatewayVpcAssociation
+
+  {% if TieredVPC_vpn %}
+
+  VPNGatewayPropagationForPublicTiers:
+    Type : AWS::EC2::VPNGatewayRoutePropagation
+    DependsOn: VPNGatewayAttachment
+    Properties:
+      RouteTableIds: [{ Ref : PublicRouteTable }]
+      VpnGatewayId: { Ref : VPNGateway }
+
+  {% endif %}
+
+{% endif %}
+
+{%- for tier in TieredVPC_tiers %}
+{% set outer_loop = loop %}
+
+  {%- for subnet in tier.subnets %}
+  {% set zone = loop.index %}
+
+    {%- if subnet|ipsubnet %}
+
+  {{ tier.name }}SubnetZone{{ zone }}:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: { Ref: VPC }
+      CidrBlock: "{{ subnet }}"
+      AvailabilityZone: { "Fn::Select" : [ {{ loop.index0 }}, { "Fn::GetAZs" : "" } ] }
+      Tags:
+        - Key: Name
+          Value: { "Fn::Join": [ " ", [ { "Ref": "AWS::StackName" }, "{{ tier.name }} Subnet Zone {{ zone }}" ] ] }
+        - Key: Tier
+          Value: {{ tier.name }}
+
+      {% if tier.public is defined %}
+
+  {{ tier.name }}SubnetZone{{ zone }}RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: { Ref: {{ tier.name }}SubnetZone{{ zone }} }
+      RouteTableId: { Ref: PublicRouteTable }
+
+
+        {% if tier.nat_gateway is defined %}
+
+  {{ tier.name }}NatGatewayEIP{{ zone }}:
+    Type: AWS::EC2::EIP
+    Properties: { Domain: vpc }
+    DependsOn: InternetGatewayVpcAssociation
+
+  {{ tier.name }}NatGatewayZone{{ zone }}:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: { "Fn::GetAtt": ["{{ tier.name }}NatGatewayEIP{{ zone }}", "AllocationId"] }
+      SubnetId: { Ref: {{ tier.name }}SubnetZone{{ zone }} }
+        {% endif %}
+
+      {% elif tier.nat_from is defined %}
+
+  {{ tier.name }}PrivateRouteTable{{ zone }}:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: { Ref: VPC }
+      Tags:
+        - Key: Name
+          Value: { "Fn::Join": [ " ", [ { "Ref": "AWS::StackName" }, "Private Route Table Zone {{ zone }}" ] ] }
+
+  RouteToNatZone{{ zone }}:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: { Ref: {{ tier.name }}PrivateRouteTable{{ zone }} }
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: { Ref: {{ tier.nat_from }}NatGatewayZone{{ zone }} }
+
+  {{ tier.name }}SubnetZone{{ zone }}RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: { Ref: {{ tier.name }}SubnetZone{{ zone }} }
+      RouteTableId: { Ref: {{ tier.name }}PrivateRouteTable{{ zone }} }
+
+      {% else %} {# not public, not nat ==> associate with default route table. #}
+
+  {{ tier.name }}SubnetZone{{ zone }}RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: { Ref: {{ tier.name }}SubnetZone{{ zone }} }
+      RouteTableId: { Ref: DefaultRouteTable }
+
+      {% endif %} {# end of the global if #}
+
+
+
+    {% endif %}
+  {%- endfor %}
+{% endfor %}
+
+{% if TieredVPC_vpn %}
+
+  VPNGateway:
+    Type: AWS::EC2::VPNGateway
+    Properties:
+      Type: ipsec.1
+      Tags:
+        - Key: Name
+          Value: { "Ref": "AWS::StackName" }
+
+  VPNGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: { Ref: VPC }
+      VpnGatewayId: { Ref: VPNGateway }
+
+{% endif %}
+
+Outputs:
+  VpcId:
+    Description: "@AWS::EC2::VPC::Id of the created VPC."
+    Value:
+      Ref: VPC
+
+{% if TieredVPC_vpn %}
+
+  VgwId:
+    Description: "@AWS::EC2::VPNGateway associated with this vpc"
+    Value:
+      Ref: VPNGateway
+
+{% endif %}
+
+{% for tier in TieredVPC_tiers %}
+{%- set outer_loop = loop %}
+  {{ tier.name }}SubnetList:
+    Description: "@List<AWS::EC2::Subnet::Id> of {{ tier.name }} tier."
+    Value:
+      "Fn::Join":
+        - ","
+        -
+{% for subnet in tier.subnets %}
+{% set zone = loop.index %}
+{% if subnet|ipsubnet %}
+          - { Ref : "{{ tier.name }}SubnetZone{{ zone }}" }
+{% endif %}
+{% endfor %}
+{% endfor %}
+  SubnetsCidr:
+    Description: "@List<String> of all subnets in the vpc"
+    Value: "{{ TieredVPC_tiers|map(attribute='subnets')|sum(start=[])|reject('none')|list|join(',') }}"
+
+  VpcCidr:
+    Description: "@List<String> of the vpc vpc"
+    Value: "{{ TieredVPC_cidr }}"

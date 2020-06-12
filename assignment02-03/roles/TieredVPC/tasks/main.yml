@@ -1,0 +1,22 @@
+---
+# tasks file for TieredVPC
+- set_fact:
+    TieredVPC_igw: "{% if TieredVPC_tiers|selectattr('public', 'defined')|list|count > 0 %}yes{% else %}no{% endif %}"
+    TieredVPC_vpn: "{% if TieredVPC_tiers|selectattr('vpn', 'defined')|list|count > 0 %}yes{% else %}no{% endif %}"
+
+- debug: var=TieredVPC_igw
+- debug: var=TieredVPC_vpn
+
+- name: Render TieredVPC cloudformation template.
+  template: src="layout-cfn.yml.j2" dest=".generated_templates/{{ TieredVPC_prefix }}{{ inventory_hostname_short }}-layout-cfn.yml" force=yes
+
+- name: Create the cloudformation stack.
+  cloudformation:
+    stack_name: "{{ TieredVPC_stack_name }}"
+    state: present
+    region: "{{ TieredVPC_region }}"
+    template: .generated_templates/{{ TieredVPC_prefix }}{{ inventory_hostname_short }}-layout-cfn.yml
+    template_format: yaml
+  args:
+    tags: "{{ TieredVPC_tags }}"
+  register: TieredVPC_cf_r

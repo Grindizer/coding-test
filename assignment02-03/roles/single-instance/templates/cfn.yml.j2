@@ -1,0 +1,21 @@
+Resources:
+  {{ instance.name }}:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: "{{instance.image_id}}"
+      KeyName: "{{instance.keypair}}"
+      InstanceType: "{{instance.instance_type}}"
+      {% for sec in instance.security_groups %}
+      SecurityGroupIds:
+        - "{{sec}}"
+        - { Ref: CommonSecurityGroup }
+
+{#  CommonSecurityGroup:#}
+{#    Type: "AWS::EC2::SecurityGroup"#}
+{#    Properties:#}
+{#      GroupDescription: "Common security group"#}
+{#      VpcId:#}
+{#      SecurityGroupIngress:#}
+{#        seci#}
+{##}
+

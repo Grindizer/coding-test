@@ -1,0 +1,4 @@
+---
+prefix: "{{ ansible_env|default('') }}-{{ ansible_app|default('') }}-"
+stack_name: "{{ TieredVPC_prefix }}{{ TieredVPC_name|lower }}"
+tags: {}
