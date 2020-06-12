@@ -2,15 +2,18 @@
 
 
 - name: Render cloudformation template.
-  template: src="cfn.yml.j2" dest=".generated_templates/{{ TieredVPC_prefix }}{{ inventory_hostname_short }}-cfn.yml" force=yes
+  template: src="cfn.yml.j2" dest=".generated_templates/{{ prefix }}{{ inventory_hostname_short }}-cfn.yml" force=yes
 
 - name: Create the cloudformation stack.
   cloudformation:
     stack_name: "{{ stack_name }}"
     state: present
     region: "{{ region }}"
-    template: .generated_templates/{{ TieredVPC_prefix }}{{ inventory_hostname_short }}-layout-cfn.yml
+    template: .generated_templates/{{ prefix }}{{ inventory_hostname_short }}-cfn.yml
     template_format: yaml
+    template_parameters:
+      SubnetId: "{{ subnet_id }}"
+      KeyName: "{{ key_name }}"
   args:
     tags: "{{ tags }}"
   register: TieredVPC_cf_r

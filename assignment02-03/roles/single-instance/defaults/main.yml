@@ -1,4 +1,5 @@
 ---
 prefix: "{{ ansible_env|default('') }}-{{ ansible_app|default('') }}-"
-stack_name: "{{ TieredVPC_prefix }}{{ TieredVPC_name|lower }}"
+name: "single-instance"
+stack_name: "{{ prefix }}{{ name|lower }}"
 tags: {}
