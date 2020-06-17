@@ -1,5 +1,6 @@
 ---
-prefix: "{{ ansible_env|default('') }}-{{ ansible_app|default('') }}-"
-name: "single-instance"
-stack_name: "{{ prefix }}{{ name|lower }}"
-tags: {}
+stack_prefix: "{{ ansible_env|default('') }}-{{ ansible_app|default('') }}-"
+stack_label: "single-instance"
+stack_name: "{{ stack_prefix }}{{ stack_label|lower }}"
+stack_tags: {}
+stack_region: "{{ region }}"

@@ -7,37 +7,10 @@ TieredVPC_stack_name: "{{ TieredVPC_prefix }}{{ TieredVPC_name|lower }}"
 TieredVPC_region: "{{ region }}"
 TieredVPC_tags: {}
 
-
 # main options
-TieredVPC_cidr: 192.168.0.0/16
-TieredVPC_tiers:
-  - name: One
-    public: yes
-    subnets:
-      - "{{ TieredVPC_cidr }}"
-
-#
-#vpc_cidr: 192.168.0.0/16
-#vpc_tiers:
-#  - name: Public
+#TieredVPC_cidr: 192.168.0.0/16
+#TieredVPC_tiers:
+#  - name: One
 #    public: yes
-#    nat_gateway: yes
-#    vpn: yes
 #    subnets:
-#      -
-#      - 192.168.1.0/24
-#      - 192.168.4.0/24
-#
-#  - name: App
-#    nat_from: Public
-#    vpn: yes
-#    subnets:
-#      -
-#      - 192.168.2.0/24
-#      - 192.168.5.0/24
-#
-#  - name: Data
-#    vpn: yes
-#    subnets:
-#      - 192.168.3.0/24
-#      - 192.168.6.0/24
+#      - "{{ TieredVPC_cidr }}"

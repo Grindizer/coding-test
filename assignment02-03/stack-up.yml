@@ -1,42 +1,30 @@
 ---
 - hosts: master
-  gather_facts: no
+  strategy: debug
   roles:
     - name: TieredVPC
       TieredVPC_cidr: "{{ vpc_cidr }}"
       TieredVPC_tiers: "{{ vpc_layout }}"
-      TieredVPC_stack_name: "{{ lookup('stack_name', 'vpc') }}"
-  tags:
-    - vpc
+      stack_name: "{{ lookup('stack_name', 'vpc') }}"
+  post_tasks:
+    - name: cloudformation
+      cloudformation_info: { 'stack_name': "{{ lookup('stack_name', 'vpc') }}", 'region': "{{ region }}" }
+      register: cf_vpc
+    - set_fact:
+        vpc:  "{{ cf_vpc['cloudformation'][lookup('stack_name', 'vpc')]['stack_outputs'] }}"
+  tags: ['vpc']
 
 - hosts: master
-  gather_facts: no
-  vars:
-    vpc_stack_name: "{{ lookup('stack_name', 'vpc') }}"
-  pre_tasks:
-    - cloudformation_info:
-        stack_name: "{{ vpc_stack_name }}"
-        region: "{{ region }}"
-      register: vpc_stack_info
-    - debug: var=vpc_stack_info
-    - set_fact:
-        vpv_stack_outputs: "{{ vpc_stack_info.cloudformation[vpc_stack_name].stack_outputs }}"
-
+  strategy: debug
   roles:
     - name: "single-instance"
       instance: "{{ public_inst }}"
-      subnet_id: "{{ vpv_stack_outputs.PublicSubnetList.split(',')|first }}"
-      key_name: "{{ instance.key_name }}"
+      subnet_id: "{{ vpc.PublicSubnetList.split(',')|first }}"
       stack_name: "{{ lookup('stack_name', 'bastion') }}"
 
     - name: "single-instance"
       instance: "{{ private_inst }}"
-      subnet_id: "{{ vpv_stack_outputs.PrivateSubnetList.split(',')|first }}"
-      key_name: "{{ instance.key_name }}"
+      subnet_id: "{{ vpc.PrivateSubnetList.split(',')|first }}"
       stack_name: "{{ lookup('stack_name', 'app') }}"
-
-
-  tags:
-    - ec2
-    - public
+  tags: ['ec2', 'public']
 

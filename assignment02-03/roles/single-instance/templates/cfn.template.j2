@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Create a single linux instance.
+
+Parameters:
+  SubnetId:
+    Description: The subnet ID where to create the instance.
+    Type: AWS::EC2::Subnet::Id
+
+Resources:
+  EC2Instance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: "{{ instance.image_id }}"
+      InstanceType: "{{ instance.instance_type }}"
+      KeyName: "{{ instance.key_name }}"
+      {% if instance.security_groups -%}
+      {% for sec in instance.security_groups %}
+      SecurityGroupIds:
+        - "{{ sec }}"
+      {% endfor %}
+      {% endif -%}
+      UserData:
+        "Fn::Base64": !Sub |
+          {{ lookup('template', 'userdata.bash.j2') | indent( width=10, indentfirst=False) }}
+
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: { Ref: SubnetId }
+          {% if instance.public_ip is defined and instance.public_ip %}AssociatePublicIpAddress: yes{% endif %}
+
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          files:
+            "/etc/cfn/cfn-hup.conf":
+              mode: 000400
+              owner: root
+              group: root
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource EC2Instance
+
+            "/home/ec2-user/.ssh/authorized_keys":
+              mode: 0600
+              owner: ec2-user
+              group: ec2-user
+              content: !Sub |
+                {% for key in instance.ssh_public_keys %}
+                {{ key | indent(width=16, indentfirst=True) }}
+                {% endfor %}
+
+

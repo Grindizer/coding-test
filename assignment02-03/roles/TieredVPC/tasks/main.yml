@@ -8,15 +8,17 @@
 - debug: var=TieredVPC_vpn
 
 - name: Render TieredVPC cloudformation template.
-  template: src="layout-cfn.yml.j2" dest=".generated_templates/{{ TieredVPC_prefix }}{{ inventory_hostname_short }}-layout-cfn.yml" force=yes
+  template:
+    src: "vpc.template.j2"
+    dest: ".generated_templates/{{ TieredVPC_prefix }}{{ inventory_hostname_short }}-vpc.template"
+    force: yes
 
 - name: Create the cloudformation stack.
   cloudformation:
     stack_name: "{{ TieredVPC_stack_name }}"
     state: present
     region: "{{ TieredVPC_region }}"
-    template: .generated_templates/{{ TieredVPC_prefix }}{{ inventory_hostname_short }}-layout-cfn.yml
-    template_format: yaml
+    template: .generated_templates/{{ TieredVPC_prefix }}{{ inventory_hostname_short }}-vpc.template
   args:
     tags: "{{ TieredVPC_tags }}"
   register: TieredVPC_cf_r
